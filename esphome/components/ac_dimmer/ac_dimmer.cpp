@@ -6,7 +6,10 @@
 #include <cmath>
 
 #ifdef USE_ESP8266
-#include <core_esp8266_timer.h>
+#include <Arduino.h>
+extern "C" {
+#include "user_interface.h"  // provides timer1_* declarations in ESP8266 Arduino core
+}
 #endif
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-timer.h>
