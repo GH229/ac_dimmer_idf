@@ -8,15 +8,20 @@
 #ifdef USE_ESP8266
 #include <Arduino.h>
 extern "C" {
-#include "user_interface.h"  // provides timer1_* declarations in ESP8266 Arduino core
+#include "user_interface.h"
 }
+#endif
+
+// Forward declare so the ISR wrapper can call it
+uint32_t IRAM_ATTR HOT timer_interrupt();
+
+#ifdef USE_ESP8266
+void IRAM_ATTR HOT timer_interrupt_isr() { (void) timer_interrupt(); }
 #endif
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-timer.h>
 #endif
-#ifdef USE_ESP8266
-void IRAM_ATTR HOT timer_interrupt_isr() { (void) timer_interrupt(); }
-#endif
+
 
 namespace esphome {
 namespace ac_dimmer {
