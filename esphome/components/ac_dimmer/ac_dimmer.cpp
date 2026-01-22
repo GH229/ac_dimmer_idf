@@ -14,6 +14,9 @@ extern "C" {
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-timer.h>
 #endif
+#ifdef USE_ESP8266
+void IRAM_ATTR HOT timer_interrupt_isr() { (void) timer_interrupt(); }
+#endif
 
 namespace esphome {
 namespace ac_dimmer {
@@ -209,7 +212,7 @@ void AcDimmer::setup() {
   // Uses ESP8266 waveform (soft PWM) class
   // PWM and AcDimmer can even run at the same time this way
   timer1_isr_init();
-  timer1_attachInterrupt(timer_interrupt);
+  timer1_attachInterrupt(timer_interrupt_isr);
   // Timer1 runs at 80MHz / divider. Using DIV16 -> 5MHz => 1 tick = 0.2µs
   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
   // 50µs periodic interrupt -> 50 / 0.2 = 250 ticks
