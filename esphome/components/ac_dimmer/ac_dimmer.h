@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ARDUINO) || defined(USE_ESP_IDF)
+#ifdef USE_ARDUINO
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -72,4 +72,4 @@ class AcDimmer : public output::FloatOutput, public Component {
 }  // namespace ac_dimmer
 }  // namespace esphome
 
-#endif  // USE_ARDUINO || USE_ESP_IDF
+#endif  // USE_ARDUINO

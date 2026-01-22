@@ -1,16 +1,12 @@
-#if defined(USE_ARDUINO) || defined(USE_ESP_IDF)
+#ifdef USE_ARDUINO
 
 #include "ac_dimmer.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
 
-#ifdef USE_ESP_IDF
-#include "hw_timer_esp_idf.h"
-#endif
-
 #ifdef USE_ESP8266
-#include <core_esp8266_waveform.h>
+#include <core_esp8266_timer.h>
 #endif
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-timer.h>
@@ -209,22 +205,26 @@ void AcDimmer::setup() {
 #ifdef USE_ESP8266
   // Uses ESP8266 waveform (soft PWM) class
   // PWM and AcDimmer can even run at the same time this way
-  setTimer1Callback(&timer_interrupt);
+  timer1_isr_init();
+  timer1_attachInterrupt(timer_interrupt);
+  // Timer1 runs at 80MHz / divider. Using DIV16 -> 5MHz => 1 tick = 0.2µs
+  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
+  // 50µs periodic interrupt -> 50 / 0.2 = 250 ticks
+  timer1_write(250);
 #endif
 #ifdef USE_ESP32
-  // 80 Divider -> 1 count=1µs
-#ifdef USE_ESP_IDF
-  dimmer_timer = esphome::ac_dimmer::timer_begin(1000000);  // 1 MHz (1 tick = 1 us)
+  // Fixed periodic timer interrupt on ESP32.
+  // Historically we used prescaler=80 => 1MHz (1 tick = 1µs). Keep the same effective resolution.
+  #ifdef USE_ESP_IDF
+  dimmer_timer = esphome::ac_dimmer::timer_begin(1000000);  // 1 MHz
   esphome::ac_dimmer::timer_attach_interrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
-  // Fixed interrupt firing every 50 µs (50 ticks at 1 MHz)
-  esphome::ac_dimmer::timer_alarm(dimmer_timer, 50, true, 0);
-#else
-  // Arduino-ESP32 core 3.x timer API (frequency-based)
-  dimmer_timer = timerBegin(1000000);  // 1 MHz (1 tick = 1 us)
+  esphome::ac_dimmer::timer_alarm(dimmer_timer, 50, true, 0);  // 50 µs periodic
+  #else
+  // Arduino-ESP32 core 3.x uses the new frequency-based timer API
+  dimmer_timer = timerBegin(1000000);  // 1 MHz
   timerAttachInterrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
-  // Fixed interrupt firing every 50 µs (50 ticks at 1 MHz)
-  timerAlarm(dimmer_timer, 50, true, 0);
-#endif
+  timerAlarm(dimmer_timer, 50, true, 0);  // 50 µs periodic
+  #endif
 #endif
 }
 void AcDimmer::write_state(float state) {
@@ -265,4 +265,4 @@ void AcDimmer::dump_config() {
 }  // namespace ac_dimmer
 }  // namespace esphome
 
-#endif  // USE_ARDUINO || USE_ESP_IDF
+#endif  // USE_ARDUINO

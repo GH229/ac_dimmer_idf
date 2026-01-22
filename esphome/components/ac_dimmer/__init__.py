@@ -1,1 +1,1 @@
-
+# ESPHome external component marker
