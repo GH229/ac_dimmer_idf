@@ -28,7 +28,6 @@ void IRAM_ATTR HOT timer_interrupt_isr() { (void) esphome::ac_dimmer::timer_inte
 #endif
 
 #ifdef USE_ESP8266
-void IRAM_ATTR HOT timer_interrupt_isr() { (void) timer_interrupt(); }
 #endif
 
 namespace esphome {
