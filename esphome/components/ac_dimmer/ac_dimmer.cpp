@@ -1,27 +1,35 @@
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) || defined(USE_ESP_IDF)
 
 #include "ac_dimmer.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
 
+#ifdef USE_ESP_IDF
+#include "hw_timer_esp_idf.h"
+#endif
+
 #ifdef USE_ESP8266
+#include <core_esp8266_waveform.h>
 #include <Arduino.h>
 extern "C" {
 #include "user_interface.h"
 }
 #endif
-
-// Forward declare so the ISR wrapper can call it
-uint32_t IRAM_ATTR HOT timer_interrupt();
-
-#ifdef USE_ESP8266
-void IRAM_ATTR HOT timer_interrupt_isr() { (void) timer_interrupt(); }
-#endif
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-timer.h>
 #endif
 
+
+// Forward declaration for ISR wrappers (namespaced to match implementation)
+namespace esphome { namespace ac_dimmer { uint32_t IRAM_ATTR HOT timer_interrupt(); } }
+#ifdef USE_ESP8266
+void IRAM_ATTR HOT timer_interrupt_isr() { (void) esphome::ac_dimmer::timer_interrupt(); }
+#endif
+
+#ifdef USE_ESP8266
+void IRAM_ATTR HOT timer_interrupt_isr() { (void) timer_interrupt(); }
+#endif
 
 namespace esphome {
 namespace ac_dimmer {
@@ -166,10 +174,10 @@ void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
 // ESP32 implementation, uses basically the same code but needs to wrap
 // timer_interrupt() function to auto-reschedule
 #ifdef USE_ESP_IDF
-static esphome::ac_dimmer::HWTimer *dimmer_timer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static esphome::ac_dimmer::HWTimer *dimmer_timer = nullptr;  // NOLINT
 #else
-static hw_timer_t *dimmer_timer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-#endif
+static hw_timer_t *dimmer_timer = nullptr;  // NOLINT
+#endif  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 void IRAM_ATTR HOT AcDimmerDataStore::s_timer_intr() { timer_interrupt(); }
 #endif
 
@@ -216,26 +224,25 @@ void AcDimmer::setup() {
 #ifdef USE_ESP8266
   // Uses ESP8266 waveform (soft PWM) class
   // PWM and AcDimmer can even run at the same time this way
+  // ESP8266 Timer1: attach a void ISR wrapper (timercallback = void (*)())
   timer1_isr_init();
   timer1_attachInterrupt(timer_interrupt_isr);
-  // Timer1 runs at 80MHz / divider. Using DIV16 -> 5MHz => 1 tick = 0.2µs
+  // 80MHz / 16 = 5MHz => 0.2us per tick. 50us = 250 ticks.
   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
-  // 50µs periodic interrupt -> 50 / 0.2 = 250 ticks
   timer1_write(250);
 #endif
 #ifdef USE_ESP32
-  // Fixed periodic timer interrupt on ESP32.
-  // Historically we used prescaler=80 => 1MHz (1 tick = 1µs). Keep the same effective resolution.
-  #ifdef USE_ESP_IDF
-  dimmer_timer = esphome::ac_dimmer::timer_begin(1000000);  // 1 MHz
+  // Fixed periodic timer on ESP32.
+#ifdef USE_ESP_IDF
+  dimmer_timer = esphome::ac_dimmer::timer_begin(1000000);  // 1 MHz (1 tick = 1us)
   esphome::ac_dimmer::timer_attach_interrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
-  esphome::ac_dimmer::timer_alarm(dimmer_timer, 50, true, 0);  // 50 µs periodic
-  #else
-  // Arduino-ESP32 core 3.x uses the new frequency-based timer API
+  esphome::ac_dimmer::timer_alarm(dimmer_timer, 50, true, 0);  // 50us periodic
+#else
+  // Arduino-ESP32 core 3.x timer API (frequency-based)
   dimmer_timer = timerBegin(1000000);  // 1 MHz
   timerAttachInterrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
-  timerAlarm(dimmer_timer, 50, true, 0);  // 50 µs periodic
-  #endif
+  timerAlarm(dimmer_timer, 50, true, 0);  // 50us periodic
+#endif
 #endif
 }
 void AcDimmer::write_state(float state) {
@@ -276,4 +283,4 @@ void AcDimmer::dump_config() {
 }  // namespace ac_dimmer
 }  // namespace esphome
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

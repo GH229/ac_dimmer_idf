@@ -1,1 +1,1 @@
-# ESPHome external component marker
+# Marker file required by ESPHome external_components
